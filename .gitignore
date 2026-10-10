@@ -1,0 +1,24 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+config/database.php
+config/database.local.php
+
+# Personal data, local exports, and uploads
+backups/
+exports/
+uploads/
+*.log
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated dependencies and temporary files
+node_modules/
+vendor/
+tmp/
