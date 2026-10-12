@@ -536,7 +536,7 @@ function openRecordForm(kind, editId = '', resourceId = '') {
     dialog.dataset.kind = kind;
     dialog.dataset.editId = editId;
     document.getElementById('dialog-title').textContent = editId
-        ? (kind === 'staff' ? 'Edit staff member' : 'Edit resource')
+        ? (kind === 'staff' ? 'Edit staff member' : kind === 'clients' ? 'Edit client' : 'Edit resource')
         : layout.title;
     document.getElementById('dialog-error').hidden = true;
     document.getElementById('dialog-save').textContent = sharedForm ? 'Save' : 'Done';
@@ -740,13 +740,27 @@ async function savePortalRecord() {
                 throw new Error('Enter the client’s name, email, phone, and address.');
             }
 
-            records.clients.push({
-                id: newId(),
+            const index = records.clients.findIndex(function (client) {
+                return client.id === editId;
+            });
+
+            if (editId && index === -1) {
+                throw new Error('This client no longer exists.');
+            }
+
+            const client = {
+                id: editId || newId(),
                 name: name,
                 email: email,
                 phone: phone,
                 address: address
-            });
+            };
+
+            if (editId) {
+                records.clients[index] = client;
+            } else {
+                records.clients.push(client);
+            }
         } else if (kind === 'staff') {
             const name = values.name.trim();
             const role = values.role.trim();
@@ -964,6 +978,50 @@ if (cancelForm) {
             errorBox.hidden = false;
         }
     });
+}
+
+function removeManagedRecord(kind, id) {
+    const label = kind === 'clients' ? 'client' : 'staff member';
+
+    if (!window.confirm('Remove this ' + label + '?')) {
+        return;
+    }
+
+    try {
+        const records = readRecords();
+        const collection = records[kind];
+        const index = collection.findIndex(function (record) {
+            return record.id === id;
+        });
+
+        if (index === -1) {
+            showMessage('This ' + label + ' no longer exists.');
+            renderPortal();
+            return;
+        }
+
+        if (kind === 'staff') {
+            const hasUpcomingBooking = records.bookings.some(function (booking) {
+                return booking.staffId === id && booking.status !== 'Cancelled' && new Date(booking.end) > new Date();
+            });
+
+            if (hasUpcomingBooking) {
+                showMessage('Cancel or reassign this staff member’s upcoming bookings before removing them.');
+                return;
+            }
+        }
+
+        collection.splice(index, 1);
+        writeRecords(records);
+        renderPortal();
+        showMessage(kind === 'clients'
+            ? 'Client removed. Existing bookings keep their saved client details.'
+            : 'Staff member removed. Existing bookings keep their saved staff details.');
+    } catch (error) {
+        showMessage(error.name === 'QuotaExceededError' || error.name === 'SecurityError'
+            ? 'Browser storage is unavailable. The record was not removed.'
+            : error.message);
+    }
 }
 
 function receivedPayment(records, bookingId) {
@@ -1402,10 +1460,13 @@ function renderPortal() {
         addCell(row, client.email);
         addCell(row, client.phone);
         addCell(row, bookingCount);
+        const actions = addCell(row, '');
+        addAction(actions, 'Edit', function () { openRecordForm('clients', client.id); });
+        addAction(actions, 'Remove', function () { removeManagedRecord('clients', client.id); }, true);
         clientBody.appendChild(row);
     });
 
-    emptyTable(clientBody, 4, records.clients.length ? 'No clients match your search.' : 'No clients to display.');
+    emptyTable(clientBody, 5, records.clients.length ? 'No clients match your search.' : 'No clients to display.');
 
     const staffBody = document.querySelector('#staff tbody');
     staffBody.replaceChildren();
@@ -1422,6 +1483,7 @@ function renderPortal() {
         addStatus(row, member.status);
         const actions = addCell(row, '');
         addAction(actions, 'Edit', function () { openRecordForm('staff', member.id); });
+        addAction(actions, 'Remove', function () { removeManagedRecord('staff', member.id); }, true);
         staffBody.appendChild(row);
     });
 

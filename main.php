@@ -422,10 +422,11 @@
                                             <th>Email</th>
                                             <th>Phone</th>
                                             <th>Bookings</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr><td colspan="4" class="empty-state" data-empty>No clients to display.</td></tr>
+                                        <tr><td colspan="5" class="empty-state" data-empty>No clients to display.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
