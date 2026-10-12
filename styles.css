@@ -1,4 +1,4 @@
-/* Base styles */
+/* Base reset: make element sizing predictable and remove browser spacing defaults. */
 * {
     margin: 0;
     padding: 0;
@@ -6,13 +6,14 @@
 }
 
 :root {
-    --black: #0a0a0a;
-    --background: #f4f3f1;
-    --border: #e5e3df;
-    --text: #161616;
-    --muted: #767676;
-    --accent: #d5001c;
-    --sidebar-width: 260px;
+    /* These design tokens keep repeated colors and the desktop sidebar width consistent. */
+    --black: #0a0a0a; /* Dark surfaces, such as the sidebar and primary buttons. */
+    --background: #f4f3f1; /* Light page background behind the white panels. */
+    --border: #e5e3df; /* Fine dividers around cards, forms, and table rows. */
+    --text: #161616; /* Main text color on light surfaces. */
+    --muted: #767676; /* Supporting text such as captions and secondary labels. */
+    --accent: #d5001c; /* Red focus, error, and brand accent. */
+    --sidebar-width: 260px; /* Main content offset when the desktop sidebar is fixed. */
 }
 
 body {
@@ -55,6 +56,7 @@ button {
 }
 
 .eyebrow {
+    /* Small uppercase labels above page headings and summary values. */
     display: block;
     margin-bottom: 8px;
     color: var(--muted);
@@ -70,6 +72,7 @@ button {
 }
 
 .status-badge {
+    /* All status labels share one shape; status-specific rules below set their colors. */
     display: inline-block;
     padding: 5px 9px;
     background: #f1efec;
@@ -100,6 +103,7 @@ button {
 }
 
 .table-action {
+    /* Compact text buttons used for row actions such as Edit, Remove, and Cancel. */
     margin: 4px 12px 4px 0;
     padding: 6px 0;
     border: none;
@@ -123,6 +127,7 @@ td small {
 }
 
 .resource-thumb {
+    /* Small fleet-table preview; object-fit keeps differently shaped uploads from stretching. */
     width: 42px;
     height: 32px;
     margin-right: 10px;
@@ -131,8 +136,9 @@ td small {
     vertical-align: middle;
 }
 
-/* Sidebar */
+/* Sidebar: fixed navigation, brand mark, page links, and account/logout links. */
 .sidebar {
+    /* Keep navigation visible while the main page scrolls on larger screens. */
     position: fixed;
     inset: 0 auto 0 0;
     z-index: 100;
@@ -228,13 +234,15 @@ td small {
     border-top: 1px solid #ffffff1a;
 }
 
-/* Header and page layout */
+/* Main shell: sticky page header, role label, section title, panels, and footer. */
 .main-content {
+    /* Leave room for the fixed sidebar; the phone breakpoint removes this offset. */
     min-height: 100vh;
     margin-left: var(--sidebar-width);
 }
 
 .topbar {
+    /* Keep the page title and current role visible while scrolling through long tables. */
     position: sticky;
     top: 0;
     z-index: 50;
@@ -317,6 +325,7 @@ td small {
 }
 
 .panel {
+    /* Shared white container used for forms, tables, and report summaries. */
     min-width: 0;
     padding: 27px;
     background: white;
@@ -330,6 +339,7 @@ h3 {
 }
 
 .page-footer {
+    /* Quiet divider at the bottom of each app section. */
     display: flex;
     justify-content: space-between;
     gap: 20px;
@@ -341,8 +351,9 @@ h3 {
     letter-spacing: 1.3px;
 }
 
-/* Dashboard */
+/* Dashboard: welcome banner, summary cards, recent bookings, and quick actions. */
 .dashboard-hero {
+    /* High-contrast welcome panel at the top of the dashboard. */
     position: relative;
     display: flex;
     align-items: center;
@@ -402,6 +413,7 @@ h3 {
 }
 
 .summary-grid {
+    /* Lay out the four dashboard/report totals in an even responsive grid. */
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
@@ -409,6 +421,7 @@ h3 {
 }
 
 .summary-card {
+    /* Each total gets its own bordered white card for quick scanning. */
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -473,7 +486,8 @@ a.summary-card:hover {
     color: #bbb;
 }
 
-/* Buttons, tables, and inputs */
+/* Shared controls: buttons, responsive data tables, search bars, forms, and report filters. */
+/* Primary buttons use the dark fill; secondary buttons use a light border and background. */
 .primary-button,
 .secondary-button {
     display: inline-flex;
@@ -507,6 +521,7 @@ a.summary-card:hover {
     font-weight: 600;
 }
 
+/* Wide tables stay inside the panel and scroll horizontally on small screens. */
 .table-container {
     overflow-x: auto;
 }
@@ -581,6 +596,7 @@ select {
     min-width: 170px;
 }
 
+/* Two-column forms collapse to one column at the mobile breakpoint below. */
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -595,6 +611,7 @@ select {
 }
 
 .report-controls .date-toolbar {
+    /* Let report filters share the row and wrap naturally on narrow screens. */
     margin-bottom: 0;
 }
 
@@ -628,8 +645,9 @@ select {
     max-width: 760px;
 }
 
-/* Pop-up form */
+/* Shared dialogs: modal form backdrop, close control, and temporary save/error toast. */
 dialog {
+    /* Native modal form stays inside the viewport and scrolls when fields are numerous. */
     width: min(620px, calc(100% - 32px));
     max-height: calc(100vh - 40px);
     margin: auto;
@@ -653,6 +671,7 @@ dialog::backdrop {
 }
 
 .toast {
+    /* Fixed feedback message stays visible without changing the current screen. */
     position: fixed;
     right: 24px;
     bottom: 24px;
@@ -665,8 +684,9 @@ dialog::backdrop {
     font-size: 13px;
 }
 
-/* Login layout */
+/* Login screen: dark brand panel beside the sign-in form. */
 .login-layout {
+    /* Split the opening screen into a brand panel and a dedicated sign-in panel. */
     display: grid;
     grid-template-columns: 1.1fr 1fr;
     min-height: 100vh;
@@ -738,6 +758,7 @@ dialog::backdrop {
 }
 
 .login-form {
+    /* Keep labels and inputs evenly spaced in the login card. */
     display: flex;
     flex-direction: column;
     gap: 24px;
@@ -770,7 +791,7 @@ dialog::backdrop {
     font-size: 13px;
 }
 
-/* Boat selection */
+/* Boat selection: filters at the side and responsive photo cards for staff booking. */
 .boat-catalog {
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);
@@ -828,6 +849,7 @@ dialog::backdrop {
 }
 
 .boat-card-media {
+    /* Fixed-height image area gives every boat card a consistent top edge. */
     display: grid;
     place-items: center;
     height: 185px;
@@ -835,6 +857,7 @@ dialog::backdrop {
 }
 
 .boat-card-media img {
+    /* Fill the photo area without distorting the original uploaded image. */
     display: block;
     width: 100%;
     height: 185px;
@@ -893,6 +916,7 @@ dialog::backdrop {
 }
 
 .boat-card-specs {
+    /* Definition list presents capacity and price as paired labels and values. */
     display: grid;
     gap: 22px;
     margin: 30px 0;
@@ -939,12 +963,14 @@ dialog::backdrop {
 }
 
 @media (max-width: 1450px) {
+    /* Reduce the number of boat cards per row as the catalog gets narrower. */
     .boat-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 1100px) {
+    /* Move boat filters above the cards when there is not enough width for a side column. */
     .boat-catalog {
         grid-template-columns: minmax(0, 1fr);
         gap: 28px;
@@ -958,6 +984,7 @@ dialog::backdrop {
 }
 
 @media (max-width: 560px) {
+    /* Stack each boat card and filter control on narrow phone screens. */
     .boat-card-grid,
     .boat-filters {
         grid-template-columns: minmax(0, 1fr);
@@ -965,19 +992,22 @@ dialog::backdrop {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* Respect users who ask the operating system to reduce motion effects. */
     .boat-card {
         transition: none;
     }
 }
 
-/* Smaller screens */
+/* Tablet and phone layout: shrink the sidebar, then replace it with a toggleable drawer. */
 @media (max-width: 1200px) {
+    /* Keep dashboard summary cards readable by using two columns on tablets. */
     .summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 950px) {
+    /* Reduce navigation and dashboard spacing before the phone layout takes over. */
     .sidebar .brand {
         gap: 10px;
         padding: 0 14px;
@@ -1010,6 +1040,7 @@ dialog::backdrop {
 }
 
 @media (max-width: 720px) {
+    /* On phones, hide the sidebar until the menu button opens it and stack page content. */
     .sidebar {
         display: none;
     }
@@ -1093,6 +1124,7 @@ dialog::backdrop {
 }
 
 @media print {
+    /* Print only report content and simplify tables so the generated report fits on paper. */
     #report-results .summary-card {
         min-height: 110px;
         padding: 12px;

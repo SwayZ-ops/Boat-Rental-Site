@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <!-- This page is the login layout; main.js checks the demo credentials and opens main.php. -->
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -11,6 +12,7 @@
     </head>
 
     <body>
+        <!-- The left side introduces the portal, while the right side contains the sign-in form. -->
         <main class="login-layout">
             <section class="login-story">
                 <div class="brand">
@@ -36,6 +38,7 @@
                 <div class="login-card">
                     <h2>Welcome back.</h2>
                     <p class="muted">Sign in to your management workspace.</p>
+                    <!-- The IDs below let main.js read the username, password, and display options. -->
                     <form class="login-form" id="login-form">
                         <label for="username">
                             Username

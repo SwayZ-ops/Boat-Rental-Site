@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <!-- Despite the .php extension, this prototype page is HTML; main.js supplies its interactions. -->
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -11,6 +12,8 @@
     </head>
 
     <body>
+        <!-- The sidebar links switch sections in this page instead of loading separate pages. -->
+        <!-- This layout is shared by both roles; main.js hides or enables role-specific actions. -->
         <div class="admin-layout">
             <!-- Sidebar -->
             <aside class="sidebar" id="sidebar">
@@ -86,6 +89,7 @@
             </aside>
 
             <main class="main-content">
+                <!-- JavaScript changes this title and the profile labels for admin and staff views. -->
                 <header class="topbar">
                     <div class="topbar-heading">
                         <button id="menu-button" class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Toggle navigation">
@@ -108,7 +112,8 @@
                 </header>
 
                 <div class="page-content">
-                    <!-- Dashboard -->
+                    <!-- Each screen is a section; main.js shows only the one named in the URL hash. -->
+                    <!-- Dashboard: JavaScript fills the summary cards, booking preview, and quick links. -->
                     <section id="dashboard" class="screen" data-title="Dashboard">
                         <div class="dashboard-hero">
                             <div>
@@ -189,7 +194,7 @@
                         </div>
                     </section>
 
-                    <!-- Resources -->
+                    <!-- Resources: the table rows come from saved boats; staff book while admin manages the fleet. -->
                     <section id="resources" class="screen" data-title="Resources" hidden>
                         <!-- Admin resource actions are added to each row by main.js. -->
                         <div class="section-header">
@@ -234,7 +239,7 @@
                         </div>
                     </section>
 
-                    <!-- Bookings -->
+                    <!-- Bookings: saved reservations are rendered here with their role-checked cancel action. -->
                     <section id="bookings" class="screen" data-title="Bookings" hidden>
                         <div class="section-header">
                             <div>
@@ -322,7 +327,7 @@
                         </div>
                     </section>
 
-                    <!-- Availability -->
+                    <!-- Availability: JavaScript divides each boat's selected day into three time blocks. -->
                     <section id="availability" class="screen" data-title="Availability" hidden>
                         <div class="section-header">
                             <div>
@@ -358,7 +363,7 @@
                         </div>
                     </section>
 
-                    <!-- Payments -->
+                    <!-- Payments: receipts and balances are calculated from saved bookings and payment rows. -->
                     <section id="payments" class="screen" data-title="Payments" hidden>
                         <div class="section-header">
                             <div>
@@ -401,7 +406,7 @@
                         </div>
                     </section>
 
-                    <!-- Clients -->
+                    <!-- Clients: booking forms use these saved client IDs; actions edit or remove a client. -->
                     <section id="clients" class="screen" data-title="Clients" hidden>
                         <div class="section-header">
                             <div>
@@ -434,7 +439,7 @@
                         </div>
                     </section>
 
-                    <!-- Staff -->
+                    <!-- Staff: active status and booking conflicts control the staff dropdown for reservations. -->
                     <section id="staff" class="screen" data-title="Staff" hidden>
                         <div class="section-header">
                             <div>
@@ -475,7 +480,7 @@
                         </div>
                     </section>
 
-                    <!-- Reports -->
+                    <!-- Reports: Generate report applies the visible filters; Print report opens browser printing. -->
                     <section id="reports" class="screen" data-title="Reports" hidden>
                         <div class="section-header">
                             <div>
@@ -553,7 +558,7 @@
                         </div>
                     </section>
 
-                    <!-- Account -->
+                    <!-- Account: this section is currently a layout placeholder and does not save profile changes. -->
                     <section id="account" class="screen" data-title="My Account" hidden>
                         <div class="section-header">
                             <div>
@@ -584,7 +589,7 @@
             </main>
         </div>
 
-        <!-- Reusable pop-up for the Add / New buttons. -->
+        <!-- JavaScript fills this shared dialog with the selected form's inputs and validation errors. -->
         <dialog id="record-dialog" aria-labelledby="dialog-title">
             <div class="panel-header">
                 <h3 id="dialog-title">New record</h3>
@@ -602,6 +607,7 @@
             </form>
         </dialog>
 
+        <!-- Cancellation uses its own dialog so the selected staff/admin member is recorded. -->
         <dialog id="cancel-dialog" aria-labelledby="cancel-title">
             <div class="panel-header">
                 <h3 id="cancel-title">Cancel booking</h3>
@@ -618,6 +624,7 @@
             </form>
         </dialog>
 
+        <!-- One hidden message element is reused for save, filter, and error feedback. -->
         <div class="toast" id="toast" role="status" hidden></div>
     </body>
 </html>
