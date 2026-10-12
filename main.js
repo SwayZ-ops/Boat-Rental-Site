@@ -375,6 +375,7 @@ function readRecords() {
 }
 
 function writeRecords(records) {
+    // Keep the current demo data in this browser until database storage is connected.
     localStorage.setItem(storageKey, JSON.stringify(records));
     renderPortal();
 }
@@ -690,6 +691,7 @@ async function savePortalRecord() {
                 throw new Error('The new capacity is lower than an upcoming booking’s guest count.');
             }
 
+            // Keep the resource ID stable so its existing bookings remain linked to it.
             const resource = {
                 id: editId || newId(),
                 name: values.name.trim(),
@@ -697,6 +699,7 @@ async function savePortalRecord() {
                 capacity: capacity,
                 rate: Math.round(rate * 100) / 100,
                 status: values.status,
+                // Keep the existing photo when the edit form has no new file selected.
                 image: imageFile ? uploadedImage : (existing ? existing.image || '' : '')
             };
 
@@ -981,7 +984,8 @@ if (cancelForm) {
 }
 
 function removeManagedRecord(kind, id) {
-    const label = kind === 'clients' ? 'client' : 'staff member';
+    const labels = { resources: 'resource', clients: 'client', staff: 'staff member' };
+    const label = labels[kind] || 'record';
 
     if (!window.confirm('Remove this ' + label + '?')) {
         return;
@@ -1000,23 +1004,26 @@ function removeManagedRecord(kind, id) {
             return;
         }
 
-        if (kind === 'staff') {
+        // Keep future reservations assigned to an existing boat or staff member.
+        if (kind === 'resources' || kind === 'staff') {
             const hasUpcomingBooking = records.bookings.some(function (booking) {
-                return booking.staffId === id && booking.status !== 'Cancelled' && new Date(booking.end) > new Date();
+                const assigned = kind === 'resources' ? booking.resourceId === id : booking.staffId === id;
+                return assigned && booking.status !== 'Cancelled' && new Date(booking.end) > new Date();
             });
 
             if (hasUpcomingBooking) {
-                showMessage('Cancel or reassign this staff member’s upcoming bookings before removing them.');
+                showMessage(kind === 'resources'
+                    ? 'Cancel upcoming bookings for this resource before removing it.'
+                    : 'Cancel or reassign this staff member’s upcoming bookings before removing them.');
                 return;
             }
         }
 
+        // Past bookings retain their saved details after the current record is removed.
         collection.splice(index, 1);
         writeRecords(records);
         renderPortal();
-        showMessage(kind === 'clients'
-            ? 'Client removed. Existing bookings keep their saved client details.'
-            : 'Staff member removed. Existing bookings keep their saved staff details.');
+        showMessage('Removed. Existing bookings keep their saved ' + label + ' details.');
     } catch (error) {
         showMessage(error.name === 'QuotaExceededError' || error.name === 'SecurityError'
             ? 'Browser storage is unavailable. The record was not removed.'
@@ -1397,7 +1404,9 @@ function renderPortal() {
         }
 
         if (!isStaff) {
+            // Only administrators can change or remove shared fleet resources.
             addAction(actions, 'Edit', function () { openRecordForm('resources', resource.id); });
+            addAction(actions, 'Remove', function () { removeManagedRecord('resources', resource.id); }, true);
         }
 
         resourceBody.appendChild(row);

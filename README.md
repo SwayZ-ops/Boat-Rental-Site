@@ -25,7 +25,8 @@ records added inside the site do not create login accounts.
 ## Features
 
 - Dashboard with resource, availability, booking, and pending-payment counts.
-- Add and edit boats, including optional images, from the administrator view.
+- Add, edit, and remove boats, including optional images, from the administrator view.
+- Prevent removal of boats or staff assigned to upcoming bookings.
 - Boat-card selection for staff bookings.
 - Client and staff management, with booking dropdowns using saved records.
 - Booking capacity checks and boat/staff time-conflict checks.

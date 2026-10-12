@@ -191,6 +191,7 @@
 
                     <!-- Resources -->
                     <section id="resources" class="screen" data-title="Resources" hidden>
+                        <!-- Admin resource actions are added to each row by main.js. -->
                         <div class="section-header">
                             <div>
                                 <p class="eyebrow">THE FLEET</p>
