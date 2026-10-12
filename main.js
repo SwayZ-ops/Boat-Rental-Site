@@ -290,10 +290,6 @@ if (reportForm) {
     document.getElementById('report-from').value = dateValue(new Date(today.getFullYear(), today.getMonth(), 1));
     document.getElementById('report-to').value = dateValue(today);
 
-    document.getElementById('report-type').addEventListener('change', function () {
-        document.getElementById('report-payment-filter').hidden = this.value !== 'payments';
-    });
-
     reportForm.addEventListener('input', function () {
         const heading = document.getElementById('report-period');
         delete heading.dataset.from;
@@ -325,9 +321,8 @@ if (reportForm) {
             heading.dataset.client = client.value;
             heading.dataset.resourceLabel = resource.selectedOptions[0].textContent;
             heading.dataset.clientLabel = client.selectedOptions[0].textContent;
-            heading.dataset.reportType = document.getElementById('report-type').value;
             const paymentStatus = document.getElementById('report-payment-status');
-            heading.dataset.paymentStatus = heading.dataset.reportType === 'payments' ? paymentStatus.value : 'all';
+            heading.dataset.paymentStatus = paymentStatus.value;
             heading.dataset.paymentLabel = paymentStatus.selectedOptions[0].textContent;
             renderPortal();
         }
@@ -1075,8 +1070,7 @@ function renderReport(records) {
     const to = heading.dataset.to;
     const resourceId = heading.dataset.resource || '';
     const clientId = heading.dataset.client || '';
-    const paymentsReport = heading.dataset.reportType === 'payments';
-    const paymentFilter = paymentsReport ? heading.dataset.paymentStatus || 'all' : 'all';
+    const paymentFilter = heading.dataset.paymentStatus || 'all';
 
     if (!from || !to) {
         return;
@@ -1112,18 +1106,17 @@ function renderReport(records) {
         addCell(row, 'BK-' + booking.id.slice(0, 8).toUpperCase(), booking.client);
         addCell(row, booking.resourceName, booking.staffName || '—');
         addCell(row, dateTime(booking.start), 'to ' + dateTime(booking.end));
-        addStatus(row, paymentsReport ? bookingPaymentStatus(records, booking) : booking.status);
+        addStatus(row, bookingPaymentStatus(records, booking));
         addCell(row, money(Number(booking.total)));
         addCell(row, money(paid / 100));
         addCell(row, money(balance / 100));
-        if (paymentsReport) {
-            const methods = records.payments.filter(function (payment) {
-                return payment.bookingId === booking.id;
-            }).map(function (payment) { return payment.method; });
-            addCell(row, Array.from(new Set(methods)).join(', ') || '—');
-        } else {
-            addCell(row, booking.cancelledBy || '—', booking.cancelledAt ? dateTime(booking.cancelledAt) : '');
-        }
+        const methods = records.payments.filter(function (payment) {
+            return payment.bookingId === booking.id;
+        }).map(function (payment) { return payment.method; });
+        const cancellation = booking.cancelledBy
+            ? 'Cancelled by ' + booking.cancelledBy + (booking.cancelledAt ? ' · ' + dateTime(booking.cancelledAt) : '')
+            : '';
+        addCell(row, Array.from(new Set(methods)).join(', ') || '—', cancellation);
         body.appendChild(row);
     });
 
@@ -1132,13 +1125,11 @@ function renderReport(records) {
     document.getElementById('report-booked-value').textContent = money(bookedValue / 100);
     document.getElementById('report-payments').textContent = money(received / 100);
     document.getElementById('report-outstanding').textContent = money(outstanding / 100);
-    document.getElementById('report-table-title').textContent = paymentsReport ? 'Payment Summary' : 'Rental Overview';
-    document.getElementById('report-status-heading').textContent = paymentsReport ? 'Payment status' : 'Status';
-    document.getElementById('report-detail-heading').textContent = paymentsReport ? 'Payment methods' : 'Cancelled by';
-    heading.textContent = (paymentsReport ? 'Payments for rentals departing ' : 'Rentals departing ') + displayDate(from) + ' – ' + displayDate(to)
+    document.getElementById('report-table-title').textContent = 'Bookings and Payments';
+    heading.textContent = 'Bookings departing ' + displayDate(from) + ' – ' + displayDate(to)
         + ' · Resource: ' + (heading.dataset.resourceLabel || 'All resources')
         + ' · Client: ' + (heading.dataset.clientLabel || 'All clients')
-        + (paymentsReport ? ' · Payment status: ' + heading.dataset.paymentLabel : '');
+        + ' · Payment status: ' + (heading.dataset.paymentLabel || 'All payment statuses');
     document.getElementById('report-results').hidden = false;
     document.getElementById('print-button').disabled = false;
 }

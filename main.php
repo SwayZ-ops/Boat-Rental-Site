@@ -485,22 +485,15 @@
 
                         <div class="panel report-controls">
                             <form id="report-form" class="date-toolbar">
-                                <label>
-                                    Report
-                                    <select id="report-type">
-                                        <option value="rentals">Rental overview</option>
-                                        <option value="payments">Payments</option>
-                                    </select>
-                                </label>
                                 <label>Departure from<input id="report-from" type="date" required></label>
                                 <label>Departure to<input id="report-to" type="date" required></label>
                                 <label>Resource<select id="report-resource"><option value="">All resources</option></select></label>
                                 <label>Client<select id="report-client"><option value="">All clients</option></select></label>
-                                <label id="report-payment-filter" hidden>
+                                <label>
                                     Payment status
                                     <select id="report-payment-status">
-                                        <option value="all">All payments</option>
-                                        <option value="Paid">Fully paid</option>
+                                        <option value="all">All payment statuses</option>
+                                        <option value="Paid">Paid</option>
                                         <option value="Partial">Partially paid</option>
                                         <option value="Unpaid">Unpaid</option>
                                         <option value="Cancelled">Cancelled bookings</option>
@@ -536,7 +529,7 @@
                             </div>
 
                             <div class="panel">
-                                <h3 id="report-table-title">Rental Overview</h3>
+                                <h3 id="report-table-title">Bookings and Payments</h3>
                                 <div class="table-container">
                                     <table>
                                         <thead>
@@ -544,11 +537,11 @@
                                                 <th>Booking / Client</th>
                                                 <th>Boat / Staff</th>
                                                 <th>Rental dates</th>
-                                                <th id="report-status-heading">Status</th>
+                                                <th>Payment status</th>
                                                 <th>Rental total</th>
                                                 <th>Total paid</th>
                                                 <th>To be paid</th>
-                                                <th id="report-detail-heading">Cancelled by</th>
+                                                <th>Payment methods / cancellation</th>
                                             </tr>
                                         </thead>
                                         <tbody id="report-bookings"></tbody>
