@@ -64,7 +64,7 @@ CREATE TABLE `boat` (
     `boatName` VARCHAR(50) NOT NULL,
     `boatDesc` VARCHAR(200) NOT NULL,
     `capacity` INT NOT NULL,
-    `pricePerHour` DECIMAL(10, 2) NOT NULL,
+    `pricePerDay` DECIMAL(10, 2) NOT NULL,
     `boatLocation` VARCHAR(200) NOT NULL,
     `boatStatus` VARCHAR(30) NOT NULL DEFAULT 'available',
     -- Uploaded image filename/path, for example uploads/boat-12.jpg.
@@ -77,7 +77,7 @@ CREATE TABLE `boat` (
         FOREIGN KEY (`typeID`) REFERENCES `boat_type` (`typeID`)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `chk_boat_capacity` CHECK (`capacity` > 0),
-    CONSTRAINT `chk_boat_hourly_price` CHECK (`pricePerHour` > 0)
+    CONSTRAINT `chk_boat_daily_price` CHECK (`pricePerDay` > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 5. Bookings (this CREATE TABLE was missing from the original SQL file).
@@ -93,7 +93,7 @@ CREATE TABLE `booking` (
     `endDate` DATETIME NOT NULL,
     `numGuests` INT NOT NULL,
     -- Keep the agreed rate even if the boat's current price changes later.
-    `hourlyRateAtBooking` DECIMAL(10, 2) NOT NULL,
+    `dailyRateAtBooking` DECIMAL(10, 2) NOT NULL,
     `totalAmount` DECIMAL(10, 2) NOT NULL,
     `bookingStatus` VARCHAR(30) NOT NULL DEFAULT 'pending',
     `bookingCreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -123,7 +123,7 @@ CREATE TABLE `booking` (
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT `chk_booking_period` CHECK (`endDate` > `startDate`),
     CONSTRAINT `chk_booking_guests` CHECK (`numGuests` > 0),
-    CONSTRAINT `chk_booking_rate` CHECK (`hourlyRateAtBooking` > 0),
+    CONSTRAINT `chk_booking_daily_rate` CHECK (`dailyRateAtBooking` > 0),
     CONSTRAINT `chk_booking_total` CHECK (`totalAmount` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

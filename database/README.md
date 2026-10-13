@@ -32,6 +32,13 @@ Do not use the upgrade against the original `yacht`/`yacht_type` schema.
 Do not run the upgrade after importing the new complete schema: the complete
 schema already contains those fields.
 
+The complete schema now stores daily prices. If you imported an earlier
+hourly-price version of the corrected schema, first apply
+`upgrade-admin-features.sql` if you have not already, then apply
+`upgrade-daily-rates.sql` once. The migration renames the hourly-rate columns;
+it does not multiply existing values or recalculate saved booking totals.
+Review existing boat prices because they will be treated as per-day amounts.
+
 ## Tables
 
 | Table | Purpose |
@@ -39,7 +46,7 @@ schema already contains those fields.
 | `customer` | Clients and optional future customer login |
 | `staff` | Admin/staff accounts, job titles, and active/inactive status |
 | `boat_type` | Boat categories |
-| `boat` | Resources, capacity, hourly price, status, and image path |
+| `boat` | Resources, capacity, daily price, status, and image path |
 | `booking` | Client/boat links, creator, assigned staff, rental dates, prices, and cancellation |
 | `payment` | Booking-linked receipts, amount, method, reference, and recorded date |
 
@@ -64,7 +71,7 @@ PHP `password_hash()` values; the SQL does not seed the demonstration logins.
   fields that are not collected by the prototype forms, such as boat location.
 - Save uploaded images as files and store their paths in `boatImage`; browser
   data URLs are not suitable for that VARCHAR column.
-- Capture `hourlyRateAtBooking` when a booking is created; do not derive an old
+- Capture `dailyRateAtBooking` when a booking is created; do not derive an old
   booking's agreed rate from a boat's later edited price.
 - Translate UI statuses consistently to the database representation.
 

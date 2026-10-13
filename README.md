@@ -26,15 +26,18 @@ records added inside the site do not create login accounts.
 
 - Dashboard with resource, availability, booking, and pending-payment counts.
 - Add, edit, and remove boats, including optional images, from the administrator view.
+- Set a per-day boat rate; each calendar day between departure and return is charged as one day.
 - Prevent removal of boats or staff assigned to upcoming bookings.
 - Boat-card selection for staff bookings.
 - Client and staff management, with booking dropdowns using saved records.
-- Booking capacity checks and boat/staff time-conflict checks.
+- Booking capacity checks and boat/staff date-conflict checks.
 - Cancellation history recording the selected staff member or administrator.
 - Payment recording, partial payments, and outstanding balances.
+- Admin and staff reports with daily, weekly, monthly, yearly, and custom date ranges.
+- Payment history reports with one row per receipt, including repeated partial payments, payment date, method, and reference.
 - Daily availability overview.
-- Rental and payment reports, filtered by departure dates, resource, client,
-  and payment status, with browser printing.
+- Booking reports, filtered by departure dates, resource, client, and payment status, with browser printing.
+- Payment history reports, filtered by payment date, resource, client, and booking payment status.
 
 ## Where records are saved
 

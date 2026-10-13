@@ -8,6 +8,32 @@ const portalRole = new URLSearchParams(window.location.search).get('role') === '
 const isStaff = portalRole === 'staff';
 // Admin and staff pages share one browser record set through this localStorage key.
 const storageKey = 'boatRental.sharedRecords.v1';
+// Run the requested one-time cleanup in each browser profile after daily booking dates are introduced.
+const bookingResetKey = 'boatRental.dailyBookingReset.v1';
+
+if (!localStorage.getItem(bookingResetKey)) {
+    // Reports are calculated from bookings, so clearing bookings also clears their report results.
+    // Keep resources, clients, and staff; remove only saved bookings and payment receipts.
+    const savedRecords = localStorage.getItem(storageKey);
+
+    if (savedRecords) {
+        try {
+            const records = JSON.parse(savedRecords);
+
+            if (Array.isArray(records.bookings) && Array.isArray(records.payments)) {
+                records.bookings = [];
+                records.payments = [];
+                localStorage.setItem(storageKey, JSON.stringify(records));
+            }
+        } catch (error) {
+            // Leave malformed saved data untouched so the normal load error remains visible.
+        }
+    }
+
+    // Save the marker so refreshing the site does not repeatedly clear new reservations.
+    localStorage.setItem(bookingResetKey, 'done');
+}
+
 // This element only exists on index.php, so login code is enabled only on that page.
 const loginForm = document.getElementById('login-form');
 
@@ -122,6 +148,9 @@ function showMessage(message) {
 }
 
 
+// ADD RESOURCE FORM — fields shown after the administrator presses Add resource.
+// NEW BOOKING FORM — fields shown when admin or staff starts a booking.
+// RECORD PAYMENT FORM — fields shown when Record payment is pressed.
 // Each form layout describes the fields that openRecordForm builds for that record type.
 const formLayouts = {
     resources: {
@@ -131,7 +160,7 @@ const formLayouts = {
             ['Resource name', 'text', 'name'],
             ['Boat type', 'text', 'type'],
             ['Capacity', 'number', 'capacity'],
-            ['Rate per hour (PHP)', 'number', 'rate'],
+            ['Rate per day (PHP)', 'number', 'rate'],
             ['Fleet status', 'select', 'status'],
             ['Resource image', 'file', 'image']
         ]
@@ -142,8 +171,8 @@ const formLayouts = {
         fields: [
             ['Client', 'select', 'clientId'],
             ['Resource', 'select', 'resourceId'],
-            ['Departure', 'datetime-local', 'start'],
-            ['Return', 'datetime-local', 'end'],
+            ['Departure date', 'date', 'start'],
+            ['Return date', 'date', 'end'],
             ['Assigned staff', 'select', 'staffId'],
             ['Guests', 'number', 'guests']
         ]
@@ -184,7 +213,8 @@ const formLayouts = {
 // The same native dialog is reused for resources, bookings, clients, staff, and payments.
 const dialog = document.getElementById('record-dialog');
 
-// Connect every Add/New button to the shared form, using its data-form value as the record type.
+// ADD RESOURCE BUTTON / NEW BOOKING BUTTON / RECORD PAYMENT BUTTON —
+// buttons set data-form to a record type; this click opens its form, and Save calls savePortalRecord().
 document.querySelectorAll('[data-form]').forEach(function (button) {
     button.addEventListener('click', function () {
         openRecordForm(button.dataset.form);
@@ -216,6 +246,7 @@ if (previewForm) {
     });
 }
 
+// RESOURCE / BOOKING / PAYMENT TABLE FILTERS — live search and status dropdown event handlers.
 // Search and status controls redraw data tables when their current section supports live filtering.
 document.querySelectorAll('.panel').forEach(function (panel) {
     // These three lookups find the filter controls and initial empty row inside this panel.
@@ -277,7 +308,17 @@ function displayDate(value) {
     });
 }
 
-// The schedule controls are present only on the Availability screen.
+// Keep only the calendar date from either a date-only value or an older saved date-time.
+function rentalDateKey(value) {
+    return String(value).slice(0, 10);
+}
+
+// Show a rental date without a time, including for bookings saved before date-only fields were added.
+function displayRentalDate(value) {
+    return displayDate(rentalDateKey(value));
+}
+
+// AVAILABILITY DATE CONTROLS — selected date, previous/next day, and Today redraw the schedule.
 const scheduleDate = document.getElementById('schedule-date');
 
 if (scheduleDate) {
@@ -317,31 +358,95 @@ if (scheduleDate) {
     });
 }
 
-// The report controls and print button exist only on the Reports screen.
+// REPORT FILTERS — period, departure dates, resource, client, and payment-status controls.
 const reportForm = document.getElementById('report-form');
 
 if (reportForm) {
-    // Default the report to the current month through today so it works immediately.
-    const today = new Date();
-    document.getElementById('report-from').value = dateValue(new Date(today.getFullYear(), today.getMonth(), 1));
-    document.getElementById('report-to').value = dateValue(today);
+    // Period shortcuts and specific-date inputs all feed the same report date range.
+    const reportView = document.getElementById('report-view');
+    const reportRange = document.getElementById('report-range');
+    const reportFrom = document.getElementById('report-from');
+    const reportTo = document.getElementById('report-to');
 
-    reportForm.addEventListener('input', function () {
-        // Any changed filter makes the previous result stale until Generate report is pressed again.
+    // The date labels explain whether this report period filters departures or received payments.
+    function updateReportDateLabels() {
+        const paymentHistory = reportView.value === 'payment-history';
+        document.getElementById('report-from-label').textContent = paymentHistory ? 'Payment date from' : 'Departure from';
+        document.getElementById('report-to-label').textContent = paymentHistory ? 'Payment date to' : 'Departure to';
+    }
+
+    // WEEKLY / MONTHLY / YEARLY REPORT DATE CALCULATION — set period start through today.
+    // Set the date inputs to the start of the chosen period through today (week starts Monday).
+    function applyReportRange(period) {
+        const currentDay = new Date();
+        const start = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate());
+
+        if (period === 'day') {
+            // Daily reports use only today's date; the date fields remain editable via Specific dates.
+        } else if (period === 'week') {
+            const daysSinceMonday = (start.getDay() + 6) % 7;
+            start.setDate(start.getDate() - daysSinceMonday);
+        } else if (period === 'month') {
+            start.setDate(1);
+        } else if (period === 'year') {
+            start.setMonth(0, 1);
+        }
+
+        reportFrom.value = dateValue(start);
+        reportTo.value = dateValue(currentDay);
+    }
+
+    // Hide stale totals and prevent printing until the current filter choices are submitted.
+    function invalidateReport() {
         const heading = document.getElementById('report-period');
         delete heading.dataset.from;
         delete heading.dataset.to;
+        delete heading.dataset.rangeLabel;
+        delete heading.dataset.view;
         heading.textContent = '';
         document.getElementById('report-results').hidden = true;
         document.getElementById('print-button').disabled = true;
+    }
+
+    applyReportRange(reportRange.value);
+    updateReportDateLabels();
+
+    // REPORT FILTER CHANGE — editing any filter hides old results until Generate report is pressed.
+    // The user presses Generate report to apply the new choices and enable printing again.
+    reportForm.addEventListener('input', function (event) {
+        // Manually edited dates switch the period menu back to the specific-date option.
+        if (event.target === reportFrom || event.target === reportTo) {
+            reportRange.value = 'custom';
+        }
+
+        invalidateReport();
     });
 
+    reportForm.addEventListener('change', function (event) {
+        if (event.target === reportView) {
+            updateReportDateLabels();
+        } else if (event.target === reportRange && reportRange.value !== 'custom') {
+            applyReportRange(reportRange.value);
+        } else if (event.target === reportFrom || event.target === reportTo) {
+            reportRange.value = 'custom';
+        }
+
+        invalidateReport();
+    });
+
+    // GENERATE REPORT — validates dates and saves the selected period, resource, client, and payment filters.
+    // renderPortal() then calls renderReport(), which filters bookings and recalculates the totals.
     reportForm.addEventListener('submit', function (event) {
         event.preventDefault();
 
-        // Keep date values as YYYY-MM-DD so an invalid or backwards range is easy to reject.
-        const from = document.getElementById('report-from').value;
-        const to = document.getElementById('report-to').value;
+        // Presets calculate their own dates here, even if either date input was cleared manually.
+        if (reportRange.value !== 'custom') {
+            applyReportRange(reportRange.value);
+        }
+
+        // Specific dates use the entered values; YYYY-MM-DD strings make range checks reliable.
+        const from = reportFrom.value;
+        const to = reportTo.value;
         const heading = document.getElementById('report-period');
 
         if (!from || !to || from > to) {
@@ -349,7 +454,7 @@ if (reportForm) {
             delete heading.dataset.to;
             document.getElementById('report-results').hidden = true;
             document.getElementById('print-button').disabled = true;
-            heading.textContent = 'The end date must be on or after the start date.';
+            heading.textContent = 'Choose both dates and make sure the end date is on or after the start date.';
         } else {
             heading.dataset.from = from;
             heading.dataset.to = to;
@@ -363,10 +468,14 @@ if (reportForm) {
             const paymentStatus = document.getElementById('report-payment-status');
             heading.dataset.paymentStatus = paymentStatus.value;
             heading.dataset.paymentLabel = paymentStatus.selectedOptions[0].textContent;
+            heading.dataset.rangeLabel = reportRange.selectedOptions[0].textContent;
+            heading.dataset.view = reportView.value;
+            heading.dataset.viewLabel = reportView.selectedOptions[0].textContent;
             renderPortal();
         }
     });
 
+    // PRINT REPORT: the button prints only after a valid report has been generated.
     document.getElementById('print-button').addEventListener('click', function () {
         if (!document.getElementById('report-results').hidden) {
             window.print();
@@ -462,21 +571,21 @@ function money(amount) {
     });
 }
 
-// Format a saved date and time for tables, summaries, and cancellation details.
-function dateTime(value) {
-    return new Date(value).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-    });
+// RENTAL DAYS CALCULATION — count calendar days between departure and return (at least one day).
+// Charge one day for each calendar day between departure and return, with a one-day minimum.
+function billableRentalDays(start, end) {
+    const startParts = rentalDateKey(start).split('-').map(Number);
+    const endParts = rentalDateKey(end).split('-').map(Number);
+    const startDay = Date.UTC(startParts[0], startParts[1] - 1, startParts[2]);
+    const endDay = Date.UTC(endParts[0], endParts[1] - 1, endParts[2]);
+    return Math.max(1, (endDay - startDay) / 86400000);
 }
 
-// Return true when two time ranges intersect; touching endpoints alone do not count as overlap.
+// Return true when two date ranges intersect; return dates are exclusive endpoints.
 function overlaps(start, end, otherStart, otherEnd) {
-    // Parse both endpoints so stored strings and Date objects can be compared consistently.
-    return new Date(start) < new Date(otherEnd) && new Date(end) > new Date(otherStart);
+    // Date keys also normalize older saved date-time values before comparing reservations.
+    return rentalDateKey(start) < rentalDateKey(otherEnd)
+        && rentalDateKey(end) > rentalDateKey(otherStart);
 }
 
 // Build a dropdown option with textContent so labels are treated as text, not HTML.
@@ -534,10 +643,12 @@ function updateStaffOptions() {
     }
 }
 
-// Build and open the shared Add/Edit/Booking/Payment dialog using the requested record type.
+// ADD RESOURCE / NEW BOOKING / RECORD PAYMENT — openRecordForm builds and opens the selected form.
+// ADD starts with no editId; an Edit row button passes its saved ID so this loads that record.
+// The chosen kind selects the form fields, and the submit listener sends Save to savePortalRecord().
 function openRecordForm(kind, editId = '', resourceId = '') {
-    // Staff start a booking by choosing a boat card; admins can open the booking form directly.
-    if (kind === 'bookings' && isStaff && !resourceId) {
+    // Admins and staff both choose a boat card first when starting a new booking without a boat ID.
+    if (kind === 'bookings' && !resourceId) {
         window.location.hash = 'choose-boat';
         renderPortal();
         return;
@@ -628,7 +739,7 @@ function openRecordForm(kind, editId = '', resourceId = '') {
                 records.resources.filter(function (resource) {
                     return resource.status === 'Available';
                 }).forEach(function (resource) {
-                    addOption(input, resource.id, resource.name + ' · ' + resource.capacity + ' guests · ' + money(resource.rate) + '/hr');
+                    addOption(input, resource.id, resource.name + ' · ' + resource.capacity + ' guests · ' + money(resource.rate) + '/day');
                 });
 
                 input.value = resourceId;
@@ -696,7 +807,9 @@ function openRecordForm(kind, editId = '', resourceId = '') {
     dialog.showModal();
 }
 
-// Validate one dialog submission, update the chosen record list, and save the result.
+// SAVE RESOURCE / NEW BOOKING / RECORD PAYMENT / CLIENT / STAFF — main save handler for all forms.
+// SAVE handler for Add/Edit forms. The dialog's kind and editId identify the selected record type;
+// each branch validates that type, then adds a new row or replaces its existing row before storage.
 async function savePortalRecord() {
     // Keep references to the inline error text and button so duplicate saves can be prevented.
     const errorBox = document.getElementById('dialog-error');
@@ -717,7 +830,8 @@ async function savePortalRecord() {
         const kind = dialog.dataset.kind;
         const editId = dialog.dataset.editId;
 
-        // Resource validation includes optional image loading and protection for future bookings.
+        // RESOURCES — Add Resource and Edit row both land here; editId chooses update vs. new record.
+        // Validate the boat fields/image, preserve its ID and existing photo on edits, then save below.
         if (kind === 'resources') {
             if (isStaff) {
                 throw new Error('Only the administrator can add or edit resources.');
@@ -735,7 +849,7 @@ async function savePortalRecord() {
             }
 
             if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000 || !Number.isFinite(rate) || rate <= 0 || rate > 999999.99) {
-                throw new Error('Enter a valid capacity and hourly rate.');
+                throw new Error('Enter a valid capacity and daily rate.');
             }
 
             if (imageFile && !imageFile.type.startsWith('image/')) {
@@ -760,8 +874,10 @@ async function savePortalRecord() {
             const existing = editId ? records.resources[index] : null;
 
             // Only non-cancelled rentals that have not ended can block a fleet change.
+            const todayKey = dateValue(new Date());
             const futureBookings = records.bookings.filter(function (booking) {
-                return booking.resourceId === editId && booking.status !== 'Cancelled' && new Date(booking.end) > new Date();
+                return booking.resourceId === editId && booking.status !== 'Cancelled'
+                    && rentalDateKey(booking.end) > todayKey;
             });
 
             if (futureBookings.length && values.status !== 'Available') {
@@ -789,7 +905,7 @@ async function savePortalRecord() {
             } else {
                 records.resources.push(resource);
             }
-        // A payment is a receipt attached to a booking; it never changes the saved rental price.
+        // PAYMENTS — Record Payment adds a receipt to the selected booking; it does not edit the booking.
         } else if (kind === 'payments') {
             // Match the selected booking and convert the typed payment into integer cents.
             const booking = records.bookings.find(function (item) { return item.id === values.bookingId; });
@@ -815,9 +931,11 @@ async function savePortalRecord() {
                 amount: cents / 100,
                 method: values.method,
                 reference: values.reference.trim(),
+                // Save the user's local calendar date for Daily payment reports; createdAt keeps the timestamp.
+                payDate: dateValue(new Date()),
                 createdAt: new Date().toISOString()
             });
-        // Trim client input, then replace an existing client or add a new one.
+        // CLIENTS — Add Client and each client's Edit button use this branch; editId updates, blank adds.
         } else if (kind === 'clients') {
             const name = values.name.trim();
             const email = values.email.trim();
@@ -850,7 +968,7 @@ async function savePortalRecord() {
             } else {
                 records.clients.push(client);
             }
-        // Save staff records for the booking dropdown and availability checks used for reservations.
+        // STAFF — Add Staff and each staff member's Edit button use this branch; editId updates, blank adds.
         } else if (kind === 'staff') {
             const name = values.name.trim();
             const role = values.role.trim();
@@ -885,7 +1003,7 @@ async function savePortalRecord() {
             } else {
                 records.staff.push(member);
             }
-        // A booking connects one saved client, boat, and available staff member for a time range.
+        // BOOKINGS — New Booking and a boat card's Book button use this branch to create a reservation.
         } else if (kind === 'bookings') {
             // Resolve each dropdown ID to its full saved record before checking the reservation.
             const client = records.clients.find(function (item) {
@@ -894,7 +1012,7 @@ async function savePortalRecord() {
             const resource = records.resources.find(function (item) {
                 return item.id === values.resourceId;
             });
-            // Date objects let the code validate the range and calculate whole billable hours.
+            // Date objects validate the range and determine the number of billable rental days.
             const start = new Date(values.start);
             const end = new Date(values.end);
             // Convert text from the guest input and resolve the assigned staff record.
@@ -912,7 +1030,7 @@ async function savePortalRecord() {
             }
 
             if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
-                throw new Error('Return time must be after departure.');
+                throw new Error('Return date must be after departure date.');
             }
 
             if (!member || !staffIsAvailable(records, member, values.start, values.end)) {
@@ -931,14 +1049,15 @@ async function savePortalRecord() {
             });
 
             if (conflict) {
-                throw new Error('This resource is already booked for those times.');
+                throw new Error('This resource is already booked for those dates.');
             }
 
-            // Round partial hours up so any started rental hour is included in the price.
-            const hours = Math.ceil((end - start) / 3600000);
+            // DAILY BOOKING PRICE — count calendar days, then multiply by this boat's saved daily rate.
+            // A partial final 24-hour block is billed as one full rental day.
+            const days = billableRentalDays(values.start, values.end);
 
-            if (hours > 24 * 365) {
-                throw new Error('Choose a rental period shorter than one year.');
+            if (days > 365) {
+                throw new Error('Choose a rental period of 365 days or less.');
             }
 
             // Save readable name snapshots as well as IDs so old bookings remain understandable.
@@ -951,10 +1070,13 @@ async function savePortalRecord() {
                 staffName: member.name,
                 resourceId: resource.id,
                 resourceName: resource.name,
+                dailyRate: resource.rate,
                 start: values.start,
                 end: values.end,
+                days: days,
                 guests: guests,
-                total: Math.round(resource.rate * 100) * hours / 100,
+                // BOOKING TOTAL CALCULATION — daily rate × billable days, rounded to cents.
+                total: Math.round(resource.rate * 100) * days / 100,
                 status: 'Confirmed',
                 bookedBy: isStaff ? 'staff123' : 'admin123',
                 bookedRole: portalRole,
@@ -1090,7 +1212,8 @@ if (cancelForm) {
     });
 }
 
-// Remove an unused client, boat, or staff record while protecting future reservations.
+// REMOVE handler for the Resources, Clients, and Staff table buttons. The button supplies kind + ID;
+// this finds the saved row, protects upcoming resource/staff bookings, removes it, and redraws screens.
 function removeManagedRecord(kind, id) {
     // These labels are reused in confirmation, error, and success messages.
     const labels = { resources: 'resource', clients: 'client', staff: 'staff member' };
@@ -1116,9 +1239,10 @@ function removeManagedRecord(kind, id) {
 
         // Keep future reservations assigned to an existing boat or staff member.
         if (kind === 'resources' || kind === 'staff') {
+            const todayKey = dateValue(new Date());
             const hasUpcomingBooking = records.bookings.some(function (booking) {
                 const assigned = kind === 'resources' ? booking.resourceId === id : booking.staffId === id;
-                return assigned && booking.status !== 'Cancelled' && new Date(booking.end) > new Date();
+                return assigned && booking.status !== 'Cancelled' && rentalDateKey(booking.end) > todayKey;
             });
 
             if (hasUpcomingBooking) {
@@ -1141,7 +1265,7 @@ function removeManagedRecord(kind, id) {
     }
 }
 
-// Add all receipt amounts for one booking and return the total in integer cents.
+// PAYMENT TOTAL CALCULATION — add all receipt amounts for one booking in integer cents.
 function receivedPayment(records, bookingId) {
     return records.payments.filter(function (payment) {
         return payment.bookingId === bookingId;
@@ -1150,11 +1274,13 @@ function receivedPayment(records, bookingId) {
     }, 0);
 }
 
+// PAYMENT BALANCE CALCULATION — subtract received payments from the booking total; minimum balance is zero.
 // Subtract receipts from the booking price and prevent the balance from going below zero.
 function paymentBalance(records, booking) {
     return Math.max(0, Math.round(Number(booking.total) * 100) - receivedPayment(records, booking.id));
 }
 
+// PAYMENT STATUS CALCULATION — choose Cancelled, Paid, Partial, or Unpaid from status and balance.
 // Derive payment status from the booking cancellation state and its saved receipts.
 function bookingPaymentStatus(records, booking) {
     if (booking.status === 'Cancelled') {
@@ -1168,6 +1294,7 @@ function bookingPaymentStatus(records, booking) {
     return receivedPayment(records, booking.id) > 0 ? 'Partial' : 'Unpaid';
 }
 
+// PAYMENT CALCULATIONS DISPLAY — show paid amount, remaining balance, method, and status per booking.
 // Rebuild the payment table from bookings and receipts so balances stay current.
 function renderPayments(records) {
     const body = document.querySelector('#payments tbody');
@@ -1206,7 +1333,9 @@ function renderPayments(records) {
     emptyTable(body, 5, 'No payments or balances match this view.');
 }
 
-// Fill resource/client report dropdowns while keeping any selection that still exists.
+// REPORT RESOURCE FILTER / REPORT CLIENT FILTER — fill those dropdowns from saved records.
+// REPORT FILTER OPTIONS — renderPortal calls this to fill Resource and Client dropdowns from saved
+// records and booking history, while preserving the user's current selections during a redraw.
 function updateReportFilters(records) {
     // Include saved booking names so removed clients and boats remain filterable in old reports.
     const resources = new Map(records.resources.map(function (resource) {
@@ -1253,7 +1382,91 @@ function updateReportFilters(records) {
     });
 }
 
-// Filter bookings, calculate summary totals, and build the combined bookings-and-payments report.
+// PAYMENT HISTORY REPORT — list every receipt as a separate row and filter by its payment date.
+function renderPaymentHistoryReport(records, filters) {
+    const body = document.getElementById('report-payment-history-rows');
+    const bookingPanel = document.getElementById('report-booking-panel');
+    const paymentPanel = document.getElementById('report-payment-history-panel');
+    const history = records.payments.map(function (payment) {
+        const booking = records.bookings.find(function (item) { return item.id === payment.bookingId; });
+        const paymentDate = String(payment.payDate || payment.date || payment.createdAt || '').slice(0, 10);
+        return { payment: payment, booking: booking, paymentDate: paymentDate };
+    }).filter(function (entry) {
+        if (!entry.booking || !entry.paymentDate || entry.paymentDate < filters.from || entry.paymentDate > filters.to) {
+            return false;
+        }
+
+        const booking = entry.booking;
+        const clientKey = booking.clientId || 'name:' + booking.client;
+        const status = bookingPaymentStatus(records, booking);
+        return (!filters.resourceId || booking.resourceId === filters.resourceId)
+            && (!filters.clientId || clientKey === filters.clientId)
+            && (filters.paymentFilter === 'all' || filters.paymentFilter === status);
+    }).sort(function (first, second) {
+        return second.paymentDate.localeCompare(first.paymentDate)
+            || String(second.payment.createdAt || '').localeCompare(String(first.payment.createdAt || ''));
+    });
+
+    bookingPanel.hidden = true;
+    paymentPanel.hidden = false;
+    document.getElementById('report-count-label').textContent = 'PAYMENT TRANSACTIONS';
+    document.getElementById('report-count-note').textContent = 'One row for each receipt in this period';
+    document.getElementById('report-booked-label').textContent = 'TOTAL RECEIVED';
+    document.getElementById('report-booked-note').textContent = 'Receipts recorded during these dates';
+    document.getElementById('report-paid-label').textContent = 'BOOKINGS WITH PAYMENTS';
+    document.getElementById('report-paid-note').textContent = 'Distinct bookings represented below';
+    document.getElementById('report-balance-label').textContent = 'OUTSTANDING BALANCE';
+    document.getElementById('report-balance-note').textContent = 'Current balance on represented bookings';
+
+    let collectedCents = 0;
+    const bookingsWithPayments = new Map();
+    body.replaceChildren();
+
+    history.forEach(function (entry) {
+        const payment = entry.payment;
+        const booking = entry.booking;
+        const amountCents = Math.round(Number(payment.amount) * 100);
+        collectedCents += amountCents;
+        bookingsWithPayments.set(booking.id, booking);
+
+        const row = document.createElement('tr');
+        addCell(row, displayRentalDate(entry.paymentDate));
+        addCell(row, 'BK-' + booking.id.slice(0, 8).toUpperCase());
+        addCell(row, booking.client);
+        addCell(row, booking.resourceName, booking.staffName || '—');
+        addCell(row, money(amountCents / 100));
+        addCell(row, payment.method || '—');
+        addCell(row, payment.reference || '—');
+        addStatus(row, bookingPaymentStatus(records, booking));
+        body.appendChild(row);
+    });
+
+    let outstandingCents = 0;
+    bookingsWithPayments.forEach(function (booking) {
+        if (booking.status !== 'Cancelled') {
+            outstandingCents += paymentBalance(records, booking);
+        }
+    });
+
+    emptyTable(body, 8, 'No payments match the selected dates and filters.');
+    document.getElementById('report-booking-count').textContent = history.length;
+    document.getElementById('report-booked-value').textContent = money(collectedCents / 100);
+    document.getElementById('report-payments').textContent = bookingsWithPayments.size;
+    document.getElementById('report-outstanding').textContent = money(outstandingCents / 100);
+    document.getElementById('report-table-title').textContent = 'Payment History';
+    filters.heading.textContent = 'Payments recorded ' + displayDate(filters.from) + ' – ' + displayDate(filters.to)
+        + ' · Period: ' + (filters.rangeLabel || 'Specific dates')
+        + ' · Resource: ' + (filters.resourceLabel || 'All resources')
+        + ' · Client: ' + (filters.clientLabel || 'All clients')
+        + ' · Payment status: ' + (filters.paymentLabel || 'All payment statuses');
+    document.getElementById('report-results').hidden = false;
+    document.getElementById('print-button').disabled = false;
+}
+
+// REPORT CALCULATIONS AND DISPLAY — filter bookings; show count, booked value, total paid, and amount due.
+// REPORT RESULTS — apply date, resource, client, and payment filters and calculate report totals.
+// REPORT RESULTS — Generate report saves the date/resource/client/payment selections, then calls
+// renderPortal; this function reads those selections, filters bookings, calculates totals, and draws rows.
 function renderReport(records) {
     const heading = document.getElementById('report-period');
     // The submit handler stores dates, IDs, and display labels here for the renderer to reuse.
@@ -1262,16 +1475,45 @@ function renderReport(records) {
     const resourceId = heading.dataset.resource || '';
     const clientId = heading.dataset.client || '';
     const paymentFilter = heading.dataset.paymentStatus || 'all';
+    const view = heading.dataset.view || 'bookings';
 
     if (!from || !to) {
         return;
     }
 
-    // Keep rows that match the departure range, optional boat/client, and selected payment state.
+    if (view === 'payment-history') {
+        renderPaymentHistoryReport(records, {
+            heading: heading,
+            from: from,
+            to: to,
+            rangeLabel: heading.dataset.rangeLabel,
+            resourceId: resourceId,
+            resourceLabel: heading.dataset.resourceLabel,
+            clientId: clientId,
+            clientLabel: heading.dataset.clientLabel,
+            paymentFilter: paymentFilter,
+            paymentLabel: heading.dataset.paymentLabel
+        });
+        return;
+    }
+
+    document.getElementById('report-booking-panel').hidden = false;
+    document.getElementById('report-payment-history-panel').hidden = true;
+    document.getElementById('report-count-label').textContent = 'BOOKINGS';
+    document.getElementById('report-count-note').textContent = '';
+    document.getElementById('report-booked-label').textContent = 'BOOKED VALUE';
+    document.getElementById('report-booked-note').textContent = 'Excludes cancelled bookings';
+    document.getElementById('report-paid-label').textContent = 'TOTAL PAID';
+    document.getElementById('report-paid-note').textContent = 'All payments for these rentals';
+    document.getElementById('report-balance-label').textContent = 'TOTAL TO BE PAID';
+    document.getElementById('report-balance-note').textContent = 'Excludes cancelled bookings';
+
+    // Apply the selected departure dates, optional resource and client IDs, and payment-status dropdown.
     const bookings = records.bookings.filter(function (booking) {
-        const departure = dateValue(new Date(booking.start));
+        const departure = rentalDateKey(booking.start);
         const clientKey = booking.clientId || 'name:' + booking.client;
         const paymentStatus = bookingPaymentStatus(records, booking);
+        // The payment dropdown uses All, Paid, Partial, Unpaid, or Cancelled booking state.
         const matchesPayment = paymentFilter === 'all' || paymentFilter === paymentStatus;
         return departure >= from && departure <= to
             && (!resourceId || booking.resourceId === resourceId)
@@ -1300,7 +1542,8 @@ function renderReport(records) {
         const row = document.createElement('tr');
         addCell(row, 'BK-' + booking.id.slice(0, 8).toUpperCase(), booking.client);
         addCell(row, booking.resourceName, booking.staffName || '—');
-        addCell(row, dateTime(booking.start), 'to ' + dateTime(booking.end));
+        const rentalDays = booking.days || billableRentalDays(booking.start, booking.end);
+        addCell(row, displayRentalDate(booking.start), 'to ' + displayRentalDate(booking.end) + ' · ' + rentalDays + (rentalDays === 1 ? ' day' : ' days'));
         addStatus(row, bookingPaymentStatus(records, booking));
         addCell(row, money(Number(booking.total)));
         addCell(row, money(paid / 100));
@@ -1310,7 +1553,7 @@ function renderReport(records) {
             return payment.bookingId === booking.id;
         }).map(function (payment) { return payment.method; });
         const cancellation = booking.cancelledBy
-            ? 'Cancelled by ' + booking.cancelledBy + (booking.cancelledAt ? ' · ' + dateTime(booking.cancelledAt) : '')
+            ? 'Cancelled by ' + booking.cancelledBy + (booking.cancelledAt ? ' · ' + displayRentalDate(booking.cancelledAt) : '')
             : '';
         addCell(row, Array.from(new Set(methods)).join(', ') || '—', cancellation);
         body.appendChild(row);
@@ -1323,6 +1566,7 @@ function renderReport(records) {
     document.getElementById('report-outstanding').textContent = money(outstanding / 100);
     document.getElementById('report-table-title').textContent = 'Bookings and Payments';
     heading.textContent = 'Bookings departing ' + displayDate(from) + ' – ' + displayDate(to)
+        + ' · Period: ' + (heading.dataset.rangeLabel || 'Specific dates')
         + ' · Resource: ' + (heading.dataset.resourceLabel || 'All resources')
         + ' · Client: ' + (heading.dataset.clientLabel || 'All clients')
         + ' · Payment status: ' + (heading.dataset.paymentLabel || 'All payment statuses');
@@ -1382,6 +1626,7 @@ function emptyTable(body, count, text) {
     }
 }
 
+// BOOKING FILTERS / PAYMENT FILTERS / TABLE SEARCH — shared search and status-filter check.
 // Check a row's searchable text and status against the controls in its section.
 function matchesFilters(sectionId, text, status) {
     // data-search and data-filter are shared attributes, so the same check works for several tables.
@@ -1392,7 +1637,8 @@ function matchesFilters(sectionId, text, status) {
     return text.toLowerCase().includes(search) && (filter === 'all' || status === filter);
 }
 
-// Draw the staff boat-selection cards using the current search, type, capacity, and status filters.
+// BOAT FILTERS — search and filter booking cards by boat type, minimum capacity, and fleet status.
+// Draw the shared admin/staff boat-selection cards using the current search, type, capacity, and status filters.
 function renderBoatCatalog(records) {
     // These controls are rebuilt from current resources so new boat types appear automatically.
     const grid = document.getElementById('boat-card-grid');
@@ -1467,7 +1713,7 @@ function renderBoatCatalog(records) {
 
         const specs = document.createElement('dl');
         specs.className = 'boat-card-specs';
-        [['Capacity', resource.capacity + ' guests'], ['Rate per hour', money(resource.rate)]].forEach(function (spec) {
+        [['Capacity', resource.capacity + ' guests'], ['Rate per day', money(resource.rate)]].forEach(function (spec) {
             const group = document.createElement('div');
             const label = document.createElement('dt');
             label.textContent = spec[0];
@@ -1501,6 +1747,7 @@ function renderBoatCatalog(records) {
     }
 }
 
+// REFRESH ALL SCREENS — rebuild bookings, payments, reports, availability, and dashboard from saved records.
 // Rebuild every management view and summary from the latest shared browser records.
 function renderPortal() {
     // index.php does not have these screens, so this renderer safely exits on the login page.
@@ -1518,6 +1765,7 @@ function renderPortal() {
     }
 
     // Active excludes cancelled rentals and is reused for availability and dashboard calculations.
+    const todayKey = dateValue(new Date());
     const active = records.bookings.filter(function (booking) {
         return booking.status !== 'Cancelled';
     });
@@ -1528,7 +1776,7 @@ function renderPortal() {
         // A boat can display Booked during a live rental even if its saved fleet status is Available.
         const inUse = active.some(function (booking) {
             return booking.resourceId === resource.id
-                && new Date(booking.start) <= new Date() && new Date(booking.end) > new Date();
+                && rentalDateKey(booking.start) <= todayKey && rentalDateKey(booking.end) > todayKey;
         });
         const status = resource.status === 'Available' && inUse ? 'Booked' : resource.status;
 
@@ -1549,7 +1797,7 @@ function renderPortal() {
 
         addCell(row, resource.type);
         addCell(row, resource.capacity + ' guests');
-        addCell(row, money(resource.rate) + ' / hour');
+        addCell(row, money(resource.rate) + ' / day');
         addStatus(row, status);
         const actions = addCell(row, '');
 
@@ -1558,8 +1806,9 @@ function renderPortal() {
         }
 
         if (!isStaff) {
-            // Only administrators can change or remove shared fleet resources.
+            // RESOURCES / EDIT: the table's Edit button opens this boat's values in the shared form.
             addAction(actions, 'Edit', function () { openRecordForm('resources', resource.id); });
+            // RESOURCES / REMOVE: passes this boat ID to removeManagedRecord for confirmation and deletion.
             addAction(actions, 'Remove', function () { removeManagedRecord('resources', resource.id); }, true);
         }
 
@@ -1581,13 +1830,14 @@ function renderPortal() {
         const row = document.createElement('tr');
         addCell(row, reference, booking.guests + ' guests');
         addCell(row, booking.client);
-        addCell(row, booking.resourceName, money(booking.total));
-        addCell(row, dateTime(booking.start), 'to ' + dateTime(booking.end));
+        const days = booking.days || billableRentalDays(booking.start, booking.end);
+        addCell(row, booking.resourceName, money(booking.total) + ' · ' + days + (days === 1 ? ' day' : ' days'));
+        addCell(row, displayRentalDate(booking.start), 'to ' + displayRentalDate(booking.end));
         const statusCell = addStatus(row, booking.status);
 
         if (booking.cancelledBy) {
             const detail = document.createElement('small');
-            detail.textContent = 'Cancelled by ' + booking.cancelledBy + (booking.cancelledAt ? ' · ' + dateTime(booking.cancelledAt) : '');
+            detail.textContent = 'Cancelled by ' + booking.cancelledBy + (booking.cancelledAt ? ' · ' + displayRentalDate(booking.cancelledAt) : '');
             statusCell.appendChild(detail);
         }
 
@@ -1596,6 +1846,7 @@ function renderPortal() {
         const actions = addCell(row, '');
 
         if (booking.status !== 'Cancelled') {
+            // BOOKINGS / CANCEL: opens the cancellation form, which records the admin/staff member.
             addAction(actions, 'Cancel booking', function () { cancelBooking(booking.id); }, true);
         } else {
             actions.textContent = '—';
@@ -1625,7 +1876,9 @@ function renderPortal() {
         addCell(row, client.phone);
         addCell(row, bookingCount);
         const actions = addCell(row, '');
+        // CLIENTS / EDIT: load this client by ID into the shared form; Save updates the same record.
         addAction(actions, 'Edit', function () { openRecordForm('clients', client.id); });
+        // CLIENTS / REMOVE: send this client ID to the shared removal handler.
         addAction(actions, 'Remove', function () { removeManagedRecord('clients', client.id); }, true);
         clientBody.appendChild(row);
     });
@@ -1646,16 +1899,18 @@ function renderPortal() {
         addCell(row, member.phone);
         addStatus(row, member.status);
         const actions = addCell(row, '');
+        // STAFF / EDIT: load this staff member by ID into the shared form; Save updates that record.
         addAction(actions, 'Edit', function () { openRecordForm('staff', member.id); });
+        // STAFF / REMOVE: send this member ID to the shared removal handler and booking safety check.
         addAction(actions, 'Remove', function () { removeManagedRecord('staff', member.id); }, true);
         staffBody.appendChild(row);
     });
 
     emptyTable(staffBody, 5, records.staff.length ? 'No staff match the selected filters.' : 'No staff to display.');
 
-    // Upcoming includes active reservations whose return time has not passed, ordered by departure.
+    // Upcoming includes active reservations whose return date has not passed, ordered by departure.
     const upcoming = active.filter(function (booking) {
-        return new Date(booking.end) > new Date();
+        return rentalDateKey(booking.end) > todayKey;
     }).sort(function (first, second) {
         return new Date(first.start) - new Date(second.start);
     });
@@ -1667,7 +1922,7 @@ function renderPortal() {
         addCell(row, 'BK-' + booking.id.slice(0, 8).toUpperCase());
         addCell(row, booking.client, 'Booked by ' + booking.bookedBy);
         addCell(row, booking.resourceName);
-        addCell(row, dateTime(booking.start));
+        addCell(row, displayRentalDate(booking.start));
         addStatus(row, booking.status);
         dashboardBody.appendChild(row);
     });
@@ -1678,7 +1933,7 @@ function renderPortal() {
     const availableNow = records.resources.filter(function (resource) {
         return resource.status === 'Available' && !active.some(function (booking) {
             return booking.resourceId === resource.id
-                && new Date(booking.start) <= new Date() && new Date(booking.end) > new Date();
+                && rentalDateKey(booking.start) <= todayKey && rentalDateKey(booking.end) > todayKey;
         });
     }).length;
     const cards = document.querySelectorAll('#dashboard .summary-value');
@@ -1692,11 +1947,13 @@ function renderPortal() {
     renderSchedule(records, active);
     renderBoatCatalog(records);
     renderPayments(records);
+    // Reports: refresh the Resource/Client dropdown choices, then redraw using the submitted filters.
     updateReportFilters(records);
     renderReport(records);
 }
 
-// Draw the selected day's morning, afternoon, and evening booking blocks for every boat.
+// AVAILABILITY — show each boat's all-day status for the selected calendar date.
+// Draw whether each boat is booked for the selected calendar day.
 function renderSchedule(records, activeBookings) {
     // The chosen date comes from the date input and is refreshed by its navigation buttons.
     const body = document.querySelector('#availability tbody');
@@ -1709,28 +1966,22 @@ function renderSchedule(records, activeBookings) {
             const row = document.createElement('tr');
             addCell(row, resource.name);
 
-            // Each pair defines one schedule block as its start and end hour on the chosen day.
-            [[0, 12], [12, 18], [18, 24]].forEach(function (period) {
-                const start = new Date(day + 'T00:00:00');
-                const end = new Date(day + 'T00:00:00');
-                start.setHours(period[0]);
-                end.setHours(period[1]);
-
-                // A block is booked if any active reservation overlaps its time range.
-                const booked = activeBookings.some(function (booking) {
-                    return booking.resourceId === resource.id && overlaps(start, end, booking.start, booking.end);
-                });
-                const status = resource.status !== 'Available' ? resource.status : (booked ? 'Booked' : 'Available');
-                addStatus(row, status);
+            // Date-based rentals reserve the whole calendar day, so the schedule shows one status.
+            const booked = activeBookings.some(function (booking) {
+                return booking.resourceId === resource.id
+                    && rentalDateKey(booking.start) <= day && rentalDateKey(booking.end) > day;
             });
+            const status = resource.status !== 'Available' ? resource.status : (booked ? 'Booked' : 'Available');
+            addStatus(row, status);
 
             body.appendChild(row);
         });
     }
 
-    emptyTable(body, 4, day ? 'No resources have been added yet.' : 'Select a date to view availability.');
+    emptyTable(body, 2, day ? 'No resources have been added yet.' : 'Select a date to view availability.');
 }
 
+// BOAT FILTER BUTTONS — redraw booking cards when a filter changes or Clear filters is pressed.
 // Attach boat-catalog filter events only on the management page where those controls exist.
 if (screens.length) {
     document.getElementById('boat-search').addEventListener('input', renderPortal);

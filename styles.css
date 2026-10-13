@@ -791,7 +791,7 @@ dialog::backdrop {
     font-size: 13px;
 }
 
-/* Boat selection: filters at the side and responsive photo cards for staff booking. */
+/* Boat selection: filters at the side and responsive photo cards shared by admin and staff bookings. */
 .boat-catalog {
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);

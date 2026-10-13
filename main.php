@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <!-- Despite the .php extension, this prototype page is HTML; main.js supplies its interactions. -->
+
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -194,6 +194,7 @@
                         </div>
                     </section>
 
+                    <!-- ADD RESOURCE SCREEN / BUTTON / RESOURCE FILTERS. -->
                     <!-- Resources: the table rows come from saved boats; staff book while admin manages the fleet. -->
                     <section id="resources" class="screen" data-title="Resources" hidden>
                         <!-- Admin resource actions are added to each row by main.js. -->
@@ -226,7 +227,7 @@
                                             <th>Resource</th>
                                             <th>Type</th>
                                             <th>Capacity</th>
-                                            <th>Rate</th>
+                                            <th>Rate per day</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -239,6 +240,7 @@
                         </div>
                     </section>
 
+                    <!-- BOOKINGS SCREEN / NEW BOOKING BUTTON / BOOKING SEARCH AND STATUS FILTERS. -->
                     <!-- Bookings: saved reservations are rendered here with their role-checked cancel action. -->
                     <section id="bookings" class="screen" data-title="Bookings" hidden>
                         <div class="section-header">
@@ -285,6 +287,7 @@
                         </div>
                     </section>
 
+                    <!-- BOOK A BOAT SCREEN / BOAT SEARCH, TYPE, CAPACITY, AND STATUS FILTERS. -->
                     <section id="choose-boat" class="screen" data-title="Book a boat" hidden>
                         <div class="section-header">
                             <div>
@@ -327,7 +330,8 @@
                         </div>
                     </section>
 
-                    <!-- Availability: JavaScript divides each boat's selected day into three time blocks. -->
+                    <!-- AVAILABILITY SCREEN / SELECT DATE / PREVIOUS AND NEXT DAY. -->
+                    <!-- Availability: JavaScript shows each boat's booking status for the selected date. -->
                     <section id="availability" class="screen" data-title="Availability" hidden>
                         <div class="section-header">
                             <div>
@@ -350,19 +354,18 @@
                                     <thead>
                                         <tr>
                                             <th>Resource</th>
-                                            <th>Morning</th>
-                                            <th>Afternoon</th>
-                                            <th>Evening</th>
+                                            <th>Status for selected date</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr><td colspan="4" class="empty-state">No scheduled resources to display.</td></tr>
+                                        <tr><td colspan="2" class="empty-state">No scheduled resources to display.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
                     </section>
 
+                    <!-- PAYMENTS SCREEN / RECORD PAYMENT BUTTON / PAYMENT SEARCH AND STATUS FILTERS. -->
                     <!-- Payments: receipts and balances are calculated from saved bookings and payment rows. -->
                     <section id="payments" class="screen" data-title="Payments" hidden>
                         <div class="section-header">
@@ -480,6 +483,7 @@
                         </div>
                     </section>
 
+                    <!-- REPORT FILTERS / GENERATE REPORT / PRINT REPORT. -->
                     <!-- Reports: Generate report applies the visible filters; Print report opens browser printing. -->
                     <section id="reports" class="screen" data-title="Reports" hidden>
                         <div class="section-header">
@@ -492,8 +496,25 @@
 
                         <div class="panel report-controls">
                             <form id="report-form" class="date-toolbar">
-                                <label>Departure from<input id="report-from" type="date" required></label>
-                                <label>Departure to<input id="report-to" type="date" required></label>
+                                <label>
+                                    Report view
+                                    <select id="report-view">
+                                        <option value="bookings">Booking summary</option>
+                                        <option value="payment-history">Payment history</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Summary period
+                                    <select id="report-range">
+                                        <option value="custom">Specific dates</option>
+                                        <option value="day">Daily (today)</option>
+                                        <option value="week">This week</option>
+                                        <option value="month" selected>This month</option>
+                                        <option value="year">This year</option>
+                                    </select>
+                                </label>
+                                <label><span id="report-from-label">Departure from</span><input id="report-from" type="date"></label>
+                                <label><span id="report-to-label">Departure to</span><input id="report-to" type="date"></label>
                                 <label>Resource<select id="report-resource"><option value="">All resources</option></select></label>
                                 <label>Client<select id="report-client"><option value="">All clients</option></select></label>
                                 <label>
@@ -515,27 +536,28 @@
                         <div id="report-results" hidden>
                             <div class="summary-grid">
                                 <article class="summary-card">
-                                    <p class="eyebrow">BOOKINGS</p>
+                                    <p class="eyebrow" id="report-count-label">BOOKINGS</p>
                                     <div class="summary-value" id="report-booking-count">0</div>
+                                    <span class="muted" id="report-count-note"></span>
                                 </article>
                                 <article class="summary-card">
-                                    <p class="eyebrow">BOOKED VALUE</p>
+                                    <p class="eyebrow" id="report-booked-label">BOOKED VALUE</p>
                                     <div class="summary-value" id="report-booked-value">₱0.00</div>
-                                    <span class="muted">Excludes cancelled bookings</span>
+                                    <span class="muted" id="report-booked-note">Excludes cancelled bookings</span>
                                 </article>
                                 <article class="summary-card">
-                                    <p class="eyebrow">TOTAL PAID</p>
+                                    <p class="eyebrow" id="report-paid-label">TOTAL PAID</p>
                                     <div class="summary-value" id="report-payments">₱0.00</div>
-                                    <span class="muted">All payments for these rentals</span>
+                                    <span class="muted" id="report-paid-note">All payments for these rentals</span>
                                 </article>
                                 <article class="summary-card">
-                                    <p class="eyebrow">TOTAL TO BE PAID</p>
+                                    <p class="eyebrow" id="report-balance-label">TOTAL TO BE PAID</p>
                                     <div class="summary-value" id="report-outstanding">₱0.00</div>
-                                    <span class="muted">Excludes cancelled bookings</span>
+                                    <span class="muted" id="report-balance-note">Excludes cancelled bookings</span>
                                 </article>
                             </div>
 
-                            <div class="panel">
+                            <div class="panel" id="report-booking-panel">
                                 <h3 id="report-table-title">Bookings and Payments</h3>
                                 <div class="table-container">
                                     <table>
@@ -552,6 +574,27 @@
                                             </tr>
                                         </thead>
                                         <tbody id="report-bookings"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="panel" id="report-payment-history-panel" hidden>
+                                <h3>Payment History</h3>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Payment date</th>
+                                                <th>Booking</th>
+                                                <th>Client</th>
+                                                <th>Boat / Staff</th>
+                                                <th>Amount</th>
+                                                <th>Method</th>
+                                                <th>Reference</th>
+                                                <th>Booking status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="report-payment-history-rows"></tbody>
                                     </table>
                                 </div>
                             </div>
